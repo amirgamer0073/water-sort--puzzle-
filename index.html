@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Water Sort Puzzle</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        setLogLevel('debug');
+
+        // Access Firebase modules from the window object
+        window.firebase = {
+            initializeApp,
+            getAuth,
+            signInAnonymously,
+            signInWithCustomToken,
+            onAuthStateChanged,
+            getFirestore,
+            doc,
+            getDoc,
+            setDoc,
+            updateDoc,
+            onSnapshot,
+            collection,
+            getDocs,
+            query,
+            where
+        };
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            color: #1a202c;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 1rem;
+            background: linear-gradient(135deg, #87CEEB, #5DADE2);
+            touch-action: manipulation;
+        }
+        
+        @media (min-width: 640px) {
+            body {
+                justify-content: center;
+            }
+        }
+
+        .page {
+            display: none;
+            width: 100%;
+            max-width: 900px;
+            padding: 1rem;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        .page.active {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px;
+            color: white;
+            font-weight: bold;
+            transition: all 0.3s;
+            transform: scale(1);
+            border: 2px solid transparent;
+            background: linear-gradient(145deg, #6B46C1, #8B5CF6);
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+            cursor: pointer;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.6);
+        }
+
+        .btn:hover {
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.6);
+            border: 2px solid #C4B5FD;
+        }
+
+        .btn-restart {
+            background: linear-gradient(145deg, #EF4444, #F87171);
+            box-shadow: 0 4px 15px rgba(248, 113, 113, 0.4);
+        }
+
+        .btn-restart:hover {
+            box-shadow: 0 6px 20px rgba(248, 113, 113, 0.6);
+            border: 2px solid #FECACA;
+        }
+
+        .btn-extra {
+            background: linear-gradient(145deg, #2D3748, #4A5568);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            color: #E2E8F0;
+        }
+        .level-btn {
+    width: 6rem;       /* w-24 */
+    height: 6rem;      /* h-24 */
+    margin: 0.5rem;    /* m-2 */
+    font-size: 1.5rem; /* text-2xl */
+    font-weight: bold; /* font-bold */
+    display: flex;     /* flex */
+    align-items: center; /* items-center */
+    justify-content: center; /* justify-center */
+    border-radius: 0.5rem; /* rounded-lg */
+
+    background: linear-gradient(145deg, #2D3748, #4A5568);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    color: #E2E8F0;
+}
+        .level-btn.unlocked {
+            background: linear-gradient(145deg, #6B46C1, #8B5CF6);
+            cursor: pointer;
+            color: white;
+        }
+
+        .level-btn.locked {
+            background-color: #4A5568;
+            color: #A0AEC0;
+            cursor: not-allowed;
+        }
+        
+        .game-container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            padding: 1rem;
+            margin-top: 1rem;
+            max-width: 100%;
+        }
+
+        .tube-container {
+            position: relative;
+            width: 4rem; /* Smaller width for mobile */
+            height: 12rem; /* Smaller height for mobile */
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 0 0 2rem 2rem;
+            display: flex;
+            flex-direction: column-reverse;
+            justify-content: flex-start;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            transition: transform 0.5s ease;
+        }
+        
+        @media (min-width: 640px) {
+            .tube-container {
+                width: 5rem;
+                height: 16rem;
+            }
+        }
+
+        .tube-container.selected {
+            transform: translateY(-1.5rem) scale(1.05); /* Smaller lift for mobile */
+            border: 2px solid #8B5CF6;
+        }
+
+        .color-segment {
+            width: 100%;
+            height: 25%;
+            position: relative;
+            transition: all 0.5s ease-out;
+        }
+
+        .color-segment:last-child {
+            border-top-left-radius: 1.5rem;
+            border-top-right-radius: 1.5rem;
+        }
+        
+        .pouring-liquid {
+            position: absolute;
+            z-index: 50;
+            width: 2.5rem;
+            height: 6rem;
+            transition: all 0.8s ease-in-out;
+            border-top-left-radius: 1.5rem;
+            border-top-right-radius: 1.5rem;
+        }
+        
+        @media (min-width: 640px) {
+            .pouring-liquid {
+                width: 3rem;
+                height: 8rem;
+            }
+        }
+        
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .modal {
+            background: linear-gradient(145deg, #F0F4F8, #E2E8F0);
+            padding: 2rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            max-width: 90%;
+            color: #1a202c;
+            position: relative;
+        }
+        
+        @media (min-width: 640px) {
+            .modal {
+                padding: 3rem;
+            }
+        }
+
+        .close-modal-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: #A0AEC0;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .close-modal-btn:hover {
+            color: #1a202c;
+        }
+
+        .message-box {
+            position: absolute;
+            top: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 0.75rem 1.5rem;
+            background-color: rgba(0, 0, 0, 0.1);
+            color: #1a202c;
+            border-radius: 9999px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            z-index: 90;
+        }
+
+        .message-box.show {
+            opacity: 1;
+        }
+
+        .loading-modal {
+            background: rgba(0, 0, 0, 0.9);
+            padding: 2rem;
+            color: white;
+        }
+
+        .spinner {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #8B5CF6;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #levels-container {
+            max-height: 70vh;
+            overflow-y: auto;
+            -ms-overflow-style: none; /* IE and Edge */
+            scrollbar-width: none; /* Firefox */
+        }
+
+        #levels-container::-webkit-scrollbar {
+            display: none; /* Chrome, Safari, Opera */
+        }
+    </style>
+</head>
+<body class="bg-gray-950 font-sans text-white">
+
+    <!-- Home Page -->
+    <div id="home-page" class="page active">
+        <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight mb-8 text-black">Water Sort Puzzle</h1>
+        <div class="flex flex-col space-y-4">
+            <div id="loading-message" class="text-xl text-gray-700">Connecting to database...</div>
+            <button id="start-game-btn" class="btn text-xl md:text-2xl hidden">Start Game</button>
+            <button id="settings-btn" class="btn text-xl md:text-2xl hidden">Settings</button>
+            <button id="help-btn" class="btn text-xl md:text-2xl hidden">How to Play</button>
+        </div>
+        <div id="user-id-display" class="mt-4 text-sm text-gray-600 hidden"></div>
+    </div>
+
+    <!-- Level Selection Page -->
+    <div id="level-selection-page" class="page">
+        <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight mb-8 text-black">Select Level</h1>
+        <div id="levels-container" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
+            <!-- Level buttons will be generated here -->
+        </div>
+        <button id="back-to-home-btn" class="btn mt-8">Back</button>
+    </div>
+
+    <!-- Game Page -->
+    <div id="game-page" class="page">
+        <div class="flex flex-wrap justify-center items-center gap-4 mt-8 w-full px-4 text-black">
+            <div class="text-2xl font-bold">Level: <span id="level-display">1</span></div>
+            <div class="text-2xl font-bold">Moves: <span id="moves-display">0</span></div>
+        </div>
+        <div class="flex flex-wrap justify-center items-center gap-4 mt-4 w-full px-4 text-black">
+            <button id="undo-btn" class="btn btn-extra" disabled>Undo</button>
+            <button id="extra-tube-btn" class="btn btn-extra">Extra Tube</button>
+            <button id="restart-btn" class="btn btn-restart">Restart</button>
+            <button id="back-to-levels-btn" class="btn">Back to Levels</button>
+        </div>
+
+        <div id="message-box" class="message-box"></div>
+
+        <div id="game-area" class="game-container">
+            <!-- Tubes will be generated here -->
+        </div>
+    </div>
+
+    <!-- Loading Modal -->
+    <div id="loading-modal" class="modal-overlay hidden">
+        <div class="modal loading-modal">
+            <div class="spinner"></div>
+            <p class="mt-4 text-lg">Loading level...</p>
+        </div>
+    </div>
+
+    <!-- Congrats Modal -->
+    <div id="congrats-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="text-6xl mb-4">🎉</div>
+            <h2 class="text-3xl font-bold">Congratulations!</h2>
+            <p class="mt-2 text-lg text-gray-700">You completed this level.</p>
+            <button id="modal-next-btn" class="btn mt-6">Next Level</button>
+            <button class="close-modal-btn" onclick="hideModal('congrats-modal')">✖</button>
+        </div>
+    </div>
+
+    <!-- How to Play Modal -->
+    <div id="help-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <h2 class="text-3xl font-bold mb-4">How to Play</h2>
+            <ul class="text-lg text-left list-disc list-inside space-y-2 text-gray-700">
+                <li>Tap any tube to select it.</li>
+                <li>Then tap the tube you want to pour into.</li>
+                <li>You can only pour if the top color of both tubes is the same, or if the destination tube is empty.</li>
+                <li>You win when all tubes contain only a single color.</li>
+            </ul>
+            <button id="close-help-btn" class="btn mt-8">Close</button>
+            <button class="close-modal-btn" onclick="hideModal('help-modal')">✖</button>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <h2 class="text-3xl font-bold mb-4">Settings</h2>
+            <p class="mt-2 text-lg text-gray-700">Settings are not yet available.</p>
+            <button id="close-settings-btn" class="btn mt-8">Close</button>
+            <button class="close-modal-btn" onclick="hideModal('settings-modal')">✖</button>
+        </div>
+    </div>
+
+    <script type="module">
+        // Access Firebase modules from the window object
+        const {
+            initializeApp,
+            getAuth,
+            signInAnonymously,
+            signInWithCustomToken,
+            onAuthStateChanged,
+            getFirestore,
+            doc,
+            setDoc,
+            updateDoc,
+            onSnapshot
+        } = window.firebase;
+
+        // Game main variables and configuration
+        const colorPalette = [
+            '#FF6347', '#4682B4', '#32CD32', '#FFD700', '#FF1493', '#00FFFF', '#FF8C00', '#9932CC', '#A9A9A9', '#8B4513',
+            '#5F9EA0', '#FF7F50', '#6495ED', '#DC143C', '#00CED1', '#FFA07A', '#EE82EE', '#7CFC00', '#9400D3', '#FFDAB9',
+            '#BDB76B', '#E6E6FA', '#8FBC8F', '#20B2AA', '#A52A2A', '#DDA0DD', '#7B68EE', '#B22222', '#CD5C5C', '#2F4F4F'
+        ];
+        const MAX_LEVELS = 500;
+        const TUBE_CAPACITY = 4;
+        const GAME_STATE_DOC = 'game_state';
+        const USER_STATS_COLLECTION = 'user_stats';
+
+        // State object for game status
+        let gameData = {
+            currentLevel: 1,
+            unlockedLevels: 1,
+            selectedTube: null,
+            isPouring: false,
+            tubes: [],
+            history: [],
+            extraTubeUsed: false,
+            moves: 0,
+            startTime: null
+        };
+        let userId = null;
+        let unsubscribeFromUserDoc = null;
+
+        // Get HTML elements
+        const elements = {
+            homePage: document.getElementById('home-page'),
+            levelSelectionPage: document.getElementById('level-selection-page'),
+            gamePage: document.getElementById('game-page'),
+            levelsContainer: document.getElementById('levels-container'),
+            gameArea: document.getElementById('game-area'),
+            levelDisplay: document.getElementById('level-display'),
+            movesDisplay: document.getElementById('moves-display'),
+            undoBtn: document.getElementById('undo-btn'),
+            extraTubeBtn: document.getElementById('extra-tube-btn'),
+            restartBtn: document.getElementById('restart-btn'),
+            backToLevelsBtn: document.getElementById('back-to-levels-btn'),
+            congratsModal: document.getElementById('congrats-modal'),
+            modalNextBtn: document.getElementById('modal-next-btn'),
+            helpModal: document.getElementById('help-modal'),
+            closeHelpBtn: document.getElementById('close-help-btn'),
+            settingsModal: document.getElementById('settings-modal'),
+            closeSettingsBtn: document.getElementById('close-settings-btn'),
+            messageBox: document.getElementById('message-box'),
+            loadingMessage: document.getElementById('loading-message'),
+            startGameBtn: document.getElementById('start-game-btn'),
+            settingsBtn: document.getElementById('settings-btn'),
+            helpBtn: document.getElementById('help-btn'),
+            backToHomeBtn: document.getElementById('back-to-home-btn'),
+            userIdDisplay: document.getElementById('user-id-display'),
+            loadingModal: document.getElementById('loading-modal')
+        };
+        
+        // Firebase config and app ID
+        const firebaseConfig = {
+    apiKey: "demo-api-key",
+    authDomain: "demo-project.firebaseapp.com",
+    projectId: "demo-project",
+    storageBucket: "demo-project.appspot.com",
+    messagingSenderId: "1234567890",
+    appId: "1:1234567890:web:demoappid"
+};
+const appId = "water-sort-app";
+const initialAuthToken = null; 
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // --- Firebase Integration and User Authentication ---
+        async function initFirebase() {
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Firebase authentication error:", error);
+                elements.loadingMessage.textContent = "Could not connect to database. Please try again.";
+            }
+        }
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+                elements.userIdDisplay.textContent = `User ID: ${userId}`;
+                elements.userIdDisplay.classList.remove('hidden');
+                console.log("Signed in with UID:", userId);
+                await fetchUserData();
+            } else {
+                console.log("User signed out.");
+                userId = crypto.randomUUID();
+                elements.userIdDisplay.textContent = `User ID: ${userId} (Temporary)`;
+                elements.userIdDisplay.classList.remove('hidden');
+                elements.loadingMessage.textContent = "You are playing as a temporary user. Progress will not be saved.";
+            }
+            elements.loadingMessage.classList.add('hidden');
+            elements.startGameBtn.classList.remove('hidden');
+            elements.settingsBtn.classList.remove('hidden');
+            elements.helpBtn.classList.remove('hidden');
+        });
+
+        async function fetchUserData() {
+            if (!userId) return;
+            const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/data/${GAME_STATE_DOC}`);
+            if (unsubscribeFromUserDoc) {
+                unsubscribeFromUserDoc();
+            }
+            unsubscribeFromUserDoc = onSnapshot(userDocRef, (docSnap) => {
+                try {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        gameData.unlockedLevels = data.unlockedLevels || 1;
+                        console.log("User data received:", data);
+                    } else {
+                        console.log("No user data found, creating new one.");
+                        saveUserData();
+                    }
+                } catch (e) {
+                    console.error("Error fetching user data:", e);
+                    showMessage("Error fetching data from database.", 3000);
+                }
+            }, (error) => {
+                console.error("Database snapshot error:", error);
+                showMessage("Database snapshot error.", 3000);
+            });
+        }
+
+        async function saveUserData() {
+            if (!userId) return;
+            const userDocRef = doc(db, `artifacts/${appId}/users/${userId}/data/${GAME_STATE_DOC}`);
+            try {
+                await setDoc(userDocRef, {
+                    unlockedLevels: gameData.unlockedLevels,
+                    lastPlayed: new Date()
+                }, { merge: true });
+                console.log("Game state saved successfully.");
+            } catch (e) {
+                console.error("Error saving game state:", e);
+                showMessage("Error saving progress.", 3000);
+            }
+        }
+
+        async function logLevelStats() {
+            if (!userId) return;
+            const userStatsColRef = collection(db, `artifacts/${appId}/users/${userId}/${USER_STATS_COLLECTION}`);
+            try {
+                await setDoc(doc(userStatsColRef, gameData.currentLevel.toString()), {
+                    level: gameData.currentLevel,
+                    moves: gameData.moves,
+                    timeTaken: new Date().getTime() - gameData.startTime,
+                    completedAt: new Date()
+                }, { merge: true });
+                console.log(`Level ${gameData.currentLevel} stats successfully logged.`);
+            } catch (e) {
+                console.error("Error logging level stats:", e);
+            }
+        }
+
+        // --- Sound Effects and UI Functions ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(type) {
+            try {
+                let frequency, typeOsc, gainVal, duration;
+                switch(type) {
+                    case 'pour':
+                        frequency = 300; typeOsc = 'sine'; gainVal = 0.5; duration = 0.3; break;
+                    case 'win':
+                        frequency = 440; typeOsc = 'triangle'; gainVal = 0.5; duration = 0.5; break;
+                    case 'error':
+                        frequency = 100; typeOsc = 'square'; gainVal = 0.3; duration = 0.2; break;
+                    case 'select':
+                        frequency = 600; typeOsc = 'sawtooth'; gainVal = 0.4; duration = 0.1; break;
+                    default: return;
+                }
+
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.type = typeOsc;
+                oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+
+                if (type === 'win') {
+                    oscillator.frequency.linearRampToValueAtTime(frequency * 2, audioCtx.currentTime + duration);
+                    gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + duration);
+                } else {
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                }
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + duration);
+            } catch (e) {
+                console.error("Error playing sound:", e);
+            }
+        }
+
+        function showMessage(msg, duration = 2000) {
+            try {
+                elements.messageBox.textContent = msg;
+                elements.messageBox.classList.add('show');
+                setTimeout(() => {
+                    elements.messageBox.classList.remove('show');
+                }, duration);
+            } catch (e) {
+                console.error("Error displaying message:", e);
+            }
+        }
+
+        function hideModal(modalId) {
+            try {
+                document.getElementById(modalId).classList.add('hidden');
+            } catch (e) {
+                console.error("Error hiding modal:", e);
+            }
+        }
+
+        // --- Navigation Functions ---
+        function showPage(pageId) {
+            try {
+                const pages = document.querySelectorAll('.page');
+                pages.forEach(page => page.classList.remove('active'));
+                document.getElementById(pageId).classList.add('active');
+            } catch (e) {
+                console.error("Error showing page:", e);
+            }
+        }
+
+        function showLevelSelection() {
+            showPage('level-selection-page');
+            renderLevels();
+        }
+
+        async function showGame(level) {
+            showModal('loading-modal');
+            gameData.currentLevel = level;
+            await loadLevel(level);
+            hideModal('loading-modal');
+            showPage('game-page');
+        }
+
+        function showModal(modalId) {
+            try {
+                document.getElementById(modalId).classList.remove('hidden');
+            } catch (e) {
+                console.error("Error showing modal:", e);
+            }
+        }
+
+        // --- Level Generation and Management ---
+        function generateLevelConfig(level) {
+            const baseColors = 4;
+            const baseEmpty = 2;
+            const colorsPerLevel = Math.min(baseColors + Math.floor(level / 3), colorPalette.length);
+            const emptyTubes = Math.min(baseEmpty + Math.floor(level / 7), 5);
+            return {
+                numColors: colorsPerLevel,
+                numEmptyTubes: emptyTubes
+            };
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function isSolvable(tubes, maxDepth = 50000) {
+            const queue = [JSON.stringify(tubes)];
+            const visited = new Set();
+            visited.add(JSON.stringify(tubes));
+            let depth = 0;
+
+            while (queue.length > 0 && depth < maxDepth) {
+                const currentTubes = JSON.parse(queue.shift());
+                depth++;
+
+                if (isSolved(currentTubes)) {
+                    return true;
+                }
+
+                for (let i = 0; i < currentTubes.length; i++) {
+                    for (let j = 0; j < currentTubes.length; j++) {
+                        if (i === j) continue;
+                        if (canPour(currentTubes[i], currentTubes[j])) {
+                            const newTubes = JSON.parse(JSON.stringify(currentTubes));
+                            pourColors(newTubes[i], newTubes[j]);
+                            const newState = JSON.stringify(newTubes);
+                            if (!visited.has(newState)) {
+                                visited.add(newState);
+                                queue.push(newState);
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        function isSolved(tubes) {
+            return tubes.every(tube => isTubeSolved(tube) || tube.length === 0);
+        }
+
+        function canPour(fromTube, toTube) {
+            if (fromTube.length === 0 || toTube.length === TUBE_CAPACITY) return false;
+            const topColorFrom = fromTube[fromTube.length - 1];
+            const topColorTo = toTube.length > 0 ? toTube[toTube.length - 1] : null;
+            return toTube.length === 0 || topColorFrom === topColorTo;
+        }
+
+        function pourColors(fromTube, toTube) {
+            const topColorFrom = fromTube[fromTube.length - 1];
+            let pourCount = 0;
+            for (let i = fromTube.length - 1; i >= 0; i--) {
+                if (fromTube[i] === topColorFrom) {
+                    pourCount++;
+                } else {
+                    break;
+                }
+            }
+            const spaceInToTube = TUBE_CAPACITY - toTube.length;
+            const transferCount = Math.min(pourCount, spaceInToTube);
+            for (let i = 0; i < transferCount; i++) {
+                toTube.push(fromTube.pop());
+            }
+        }
+
+        async function loadLevel(level) {
+            try {
+                const levelConfig = generateLevelConfig(level);
+                const numColors = levelConfig.numColors;
+                const numEmptyTubes = levelConfig.numEmptyTubes;
+                const numTubes = numColors + numEmptyTubes;
+                const colors = shuffleArray(colorPalette.slice(0, numColors));
+
+                let newTubes = [];
+                let isLevelSolvable = false;
+
+                while (!isLevelSolvable) {
+                    const allColors = [];
+                    colors.forEach(color => {
+                        for (let i = 0; i < TUBE_CAPACITY; i++) {
+                            allColors.push(color);
+                        }
+                    });
+
+                    shuffleArray(allColors);
+                    newTubes = Array.from({ length: numTubes }, () => []);
+                    let colorIndex = 0;
+                    for (let i = 0; i < numColors; i++) {
+                        for (let j = 0; j < TUBE_CAPACITY; j++) {
+                            if (colorIndex < allColors.length) {
+                                newTubes[i].push(allColors[colorIndex]);
+                                colorIndex++;
+                            }
+                        }
+                    }
+
+                    // Ensure tubes are not already solved on creation and are solvable
+                    let hasIncompleteTubes = false;
+                    for(let i=0; i<newTubes.length; i++) {
+                        if (newTubes[i].length > 0 && newTubes[i].length < TUBE_CAPACITY) {
+                             hasIncompleteTubes = true;
+                             break;
+                        }
+                    }
+                    if (!hasIncompleteTubes) {
+                        isLevelSolvable = isSolvable(newTubes);
+                    }
+                }
+                
+                gameData.tubes = newTubes;
+                gameData.selectedTube = null;
+                gameData.isPouring = false;
+                gameData.history = [JSON.parse(JSON.stringify(newTubes))];
+                gameData.extraTubeUsed = false;
+                gameData.moves = 0;
+                gameData.startTime = new Date().getTime();
+
+                elements.extraTubeBtn.disabled = false;
+                elements.extraTubeBtn.textContent = "Extra Tube";
+
+                renderGame();
+                elements.levelDisplay.textContent = gameData.currentLevel;
+                elements.movesDisplay.textContent = gameData.moves;
+                elements.undoBtn.disabled = true;
+            } catch (e) {
+                console.error("Error loading level:", e);
+                showMessage("Could not load level. Please restart.");
+            }
+        }
+
+        function renderLevels() {
+            elements.levelsContainer.innerHTML = '';
+            for (let i = 1; i <= MAX_LEVELS; i++) {
+                const levelBtn = document.createElement('button');
+                levelBtn.textContent = i;
+                levelBtn.classList.add('level-btn');
+                if (i <= gameData.unlockedLevels) {
+                    levelBtn.classList.add('unlocked');
+                    levelBtn.addEventListener('click', () => showGame(i));
+                } else {
+                    levelBtn.classList.add('locked');
+                }
+                elements.levelsContainer.appendChild(levelBtn);
+            }
+        }
+
+        function renderGame() {
+            try {
+                elements.gameArea.innerHTML = '';
+                gameData.tubes.forEach((tube, tubeIndex) => {
+                    const tubeEl = document.createElement('div');
+                    tubeEl.classList.add('tube-container');
+                    tubeEl.dataset.tubeIndex = tubeIndex;
+
+                    if (tube.length > 0) {
+                        const segments = [];
+                        let currentRun = 1;
+                        let currentColor = tube[0];
+                        for (let i = 1; i < tube.length; i++) {
+                            if (tube[i] === currentColor) {
+                                currentRun++;
+                            } else {
+                                segments.push({ color: currentColor, count: currentRun });
+                                currentColor = tube[i];
+                                currentRun = 1;
+                            }
+                        }
+                        segments.push({ color: currentColor, count: currentRun });
+
+                        segments.forEach(seg => {
+                            const segmentEl = document.createElement('div');
+                            segmentEl.classList.add('color-segment');
+                            segmentEl.style.backgroundColor = seg.color;
+                            segmentEl.style.height = `${seg.count * (100 / TUBE_CAPACITY)}%`;
+                            tubeEl.appendChild(segmentEl);
+                        });
+                    }
+
+                    tubeEl.addEventListener('click', () => handleTubeClick(tubeIndex));
+                    elements.gameArea.appendChild(tubeEl);
+                });
+                elements.movesDisplay.textContent = gameData.moves;
+            } catch (e) {
+                console.error("Error rendering game:", e);
+            }
+        }
+
+        async function handleTubeClick(tubeIndex) {
+            try {
+                if (gameData.isPouring) return;
+
+                const tubeEl = elements.gameArea.querySelector(`[data-tube-index="${tubeIndex}"]`);
+                const currentSelected = elements.gameArea.querySelector('.selected');
+
+                if (currentSelected) {
+                    currentSelected.classList.remove('selected');
+                }
+
+                if (gameData.selectedTube === null) {
+                    if (gameData.tubes[tubeIndex].length === 0) {
+                        showMessage("This tube is empty, cannot select.");
+                        playSound('error');
+                        return;
+                    }
+                    gameData.selectedTube = tubeIndex;
+                    tubeEl.classList.add('selected');
+                    playSound('select');
+                } else {
+                    const fromTubeIndex = gameData.selectedTube;
+
+                    if (fromTubeIndex === tubeIndex) {
+                        gameData.selectedTube = null;
+                        return;
+                    }
+
+                    const success = await pour(fromTubeIndex, tubeIndex);
+
+                    if (success) {
+                        gameData.selectedTube = null;
+                        gameData.moves++;
+                        elements.movesDisplay.textContent = gameData.moves;
+                        checkWin();
+                    } else {
+                        gameData.selectedTube = null;
+                    }
+                }
+            } catch (e) {
+                console.error("Error in handleTubeClick:", e);
+                showMessage("An error occurred in the game.");
+                playSound('error');
+            }
+        }
+
+        async function pour(fromTubeIndex, toTubeIndex) {
+            try {
+                const fromTube = gameData.tubes[fromTubeIndex];
+                const toTube = gameData.tubes[toTubeIndex];
+
+                if (!canPour(fromTube, toTube)) {
+                    showMessage("No space to pour or colors do not match.");
+                    playSound('error');
+                    return false;
+                }
+
+                let pourCount = 0;
+                const topColorFrom = fromTube[fromTube.length - 1];
+                for (let i = fromTube.length - 1; i >= 0; i--) {
+                    if (fromTube[i] === topColorFrom) {
+                        pourCount++;
+                    } else {
+                        break;
+                    }
+                }
+
+                const spaceInToTube = TUBE_CAPACITY - toTube.length;
+                const transferCount = Math.min(pourCount, spaceInToTube);
+
+                if (transferCount === 0) {
+                    return false;
+                }
+
+                gameData.history.push(JSON.parse(JSON.stringify(gameData.tubes)));
+                elements.undoBtn.disabled = false;
+
+                gameData.isPouring = true;
+                await pourAnimation(fromTubeIndex, toTubeIndex, transferCount);
+
+                for (let i = 0; i < transferCount; i++) {
+                    toTube.push(fromTube.pop());
+                }
+
+                gameData.isPouring = false;
+                renderGame();
+                playSound('pour');
+                return true;
+            } catch (e) {
+                console.error("Error pouring colors:", e);
+                return false;
+            }
+        }
+
+        async function pourAnimation(fromTubeIndex, toTubeIndex, count) {
+            try {
+                const fromEl = elements.gameArea.querySelector(`[data-tube-index="${fromTubeIndex}"]`);
+                const toEl = elements.gameArea.querySelector(`[data-tube-index="${toTubeIndex}"]`);
+
+                const fromRect = fromEl.getBoundingClientRect();
+                const toRect = toEl.getBoundingClientRect();
+
+                const pouringLiquid = document.createElement('div');
+                pouringLiquid.classList.add('pouring-liquid');
+                pouringLiquid.style.backgroundColor = gameData.tubes[fromTubeIndex][gameData.tubes[fromTubeIndex].length - 1];
+
+                pouringLiquid.style.left = `${fromRect.left + fromRect.width / 2 - 24}px`;
+                pouringLiquid.style.top = `${fromRect.top + 24}px`;
+                document.body.appendChild(pouringLiquid);
+
+                fromEl.style.transition = 'transform 0.8s ease-in-out';
+                fromEl.style.transform = `translateY(-1.5rem) scale(1.05) rotate(20deg)`;
+
+                const travelX = toRect.left - fromRect.left;
+                const travelY = toRect.top - fromRect.top;
+
+                pouringLiquid.style.transform = `translate(${travelX}px, ${travelY}px)`;
+
+                await new Promise(resolve => setTimeout(resolve, 800));
+
+                fromEl.style.transform = `translateY(-1.5rem) scale(1.05)`;
+                document.body.removeChild(pouringLiquid);
+            } catch (e) {
+                console.error("Error in animation:", e);
+            }
+        }
+
+        function isTubeSolved(tube) {
+            if (tube.length === 0) return false;
+            if (tube.length < TUBE_CAPACITY) return false;
+            const firstColor = tube[0];
+            return tube.every(color => color === firstColor);
+        }
+
+        function checkWin() {
+            const isWon = gameData.tubes.every(tube => isTubeSolved(tube) || tube.length === 0);
+            if (isWon) {
+                playSound('win');
+                showModal('congrats-modal');
+                if (gameData.currentLevel >= gameData.unlockedLevels) {
+                    gameData.unlockedLevels = gameData.currentLevel + 1;
+                    saveUserData();
+                }
+                logLevelStats();
+            }
+        }
+
+        function undoLastMove() {
+            if (gameData.history.length > 1) {
+                gameData.history.pop();
+                gameData.tubes = JSON.parse(JSON.stringify(gameData.history[gameData.history.length - 1]));
+                gameData.moves--;
+                renderGame();
+                showMessage("Undone.");
+                if (gameData.history.length <= 1) {
+                    elements.undoBtn.disabled = true;
+                }
+            } else {
+                elements.undoBtn.disabled = true;
+                showMessage("No more moves to undo.");
+            }
+        }
+
+        function addExtraTube() {
+            if (!gameData.extraTubeUsed) {
+                gameData.tubes.push([]);
+                gameData.extraTubeUsed = true;
+                elements.extraTubeBtn.disabled = true;
+                elements.extraTubeBtn.textContent = "Tube Used";
+                renderGame();
+                showMessage("Extra empty tube added.");
+            } else {
+                showMessage("Extra tube has already been added.");
+            }
+        }
+
+        function restartGame() {
+            gameData.selectedTube = null;
+            gameData.isPouring = false;
+            loadLevel(gameData.currentLevel);
+            showMessage("Level restarted.");
+        }
+
+        function nextLevel() {
+            hideModal('congrats-modal');
+            gameData.currentLevel++;
+            showGame(gameData.currentLevel);
+        }
+
+        // --- Event Listeners ---
+        elements.startGameBtn.addEventListener('click', () => {
+            showLevelSelection();
+        });
+        elements.backToHomeBtn.addEventListener('click', () => showPage('home-page'));
+        elements.settingsBtn.addEventListener('click', () => showModal('settings-modal'));
+        elements.closeSettingsBtn.addEventListener('click', () => hideModal('settings-modal'));
+        elements.helpBtn.addEventListener('click', () => showModal('help-modal'));
+        elements.closeHelpBtn.addEventListener('click', () => hideModal('help-modal'));
+        elements.undoBtn.addEventListener('click', undoLastMove);
+        elements.extraTubeBtn.addEventListener('click', addExtraTube);
+        elements.restartBtn.addEventListener('click', restartGame);
+        elements.backToLevelsBtn.addEventListener('click', showLevelSelection);
+        elements.modalNextBtn.addEventListener('click', nextLevel);
+
+        // Initial Load
+        initFirebase();
+    </script>
+</body>
+</html>
